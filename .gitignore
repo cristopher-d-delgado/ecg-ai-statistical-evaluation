@@ -208,3 +208,6 @@ __marimo__/
 
 # Add data folder to .gitignore
 data/ 
+
+# Add splits folder to .gitignore
+splits/
