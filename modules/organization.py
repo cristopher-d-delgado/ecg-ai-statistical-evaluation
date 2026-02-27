@@ -11,43 +11,32 @@ import pandas as pd
 from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
 import numpy as np
 
-def download_ptbxl_data(s3_bucket="s3://physionet-open/ptb-xl/1.0.3/", data_dir=Path.cwd() / "data"):
-    """"
-    Download the PTB-XL dataset from PhysioNet. 
-    Retrives the dataset from the Amazon S3 bucket where it is hosted and saves it to a local directory.
+def download_ptbxl(data_dir: Path):
+    """
+    Downloads the PTB-XL dataset from PhysioNet S3 if it does not already exist.
 
     Parameters:
-        s3_bucket (str): The S3 bucket URL where the PTB-XL dataset is hosted. Default is "s3://physionet-open/ptb-xl/1.0.3/".
-        data_dir (str): The local directory where the dataset should be saved. Default is the current working directory under a folder named "data".
+        data_dir (Path): Directory to store the dataset.
     """
-    # Create data directory if needed
-    if not data_dir.exists():
-        print(f"Creating data directory at {data_dir}")
-        data_dir.mkdir(parents=True, exist_ok=True)
-    else:
-        print(f"Data directory already exists at {data_dir}")
+    data_dir.mkdir(parents=True, exist_ok=True)
 
-    # Download dataset using AWS CLI
-    print("Starting dataset download from S3...")
+    # Check if folder has files already
+    if any(data_dir.iterdir()):
+        print(f"Data directory '{data_dir}' already exists and is not empty. Skipping download.")
+        return
+
+    s3_bucket = "s3://physionet-open/ptb-xl/1.0.3/"
+    print(f"Downloading PTB-XL data from {s3_bucket} into {data_dir} ...")
+
     try:
-        result = subprocess.run(
-            [
-                "aws", "s3", "sync",
-                "--no-sign-request",
-                s3_bucket,
-                str(data_dir)
-            ],
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
+        subprocess.run(
+            ["aws", "s3", "sync", "--no-sign-request", s3_bucket, str(data_dir)],
+            check=True
         )
-        print(result.stdout)
-        print("Download complete.")
+        print("Download complete!")
     except subprocess.CalledProcessError as e:
-        print("Download failed.")
-        print("Error message:")
-        print(e.stderr)
+        print("Download failed. Check AWS CLI installation and network connection.")
+        print(e)
 
 #----------------------------
 # ----------------------------
@@ -106,3 +95,25 @@ def create_train_val_test_split(df, Y, patient_id_col="patient_id", random_state
         print(f"Splits saved successfully to {save_dir}")
     
     return df, train_patients, val_patients, test_patients
+
+
+#----------------------------
+# Helper Functions 
+# ----------------------------
+# Helper function to extract superclasses from SCP codes
+def extract_superclasses(scp_dict, code_to_superclass):
+    """
+    Extracts superclass labels from a dictionary of SCP codes.
+    
+    Parameters:
+        scp_dict (dict): Dictionary of SCP codes for a single ECG.
+        code_to_superclass (dict): Mapping from SCP codes to superclasses.
+        
+    Returns:
+        list: List of unique superclasses for this ECG.
+    """
+    classes = set()
+    for code in scp_dict.keys():
+        if code in code_to_superclass:
+            classes.add(code_to_superclass[code])
+    return list(classes)
