@@ -211,3 +211,7 @@ data/
 
 # Add splits folder to .gitignore
 splits/
+
+# Ignore artifacts folder entirely except the pos_weight
+artifacts/
+!artifacts/pos_weight.npy
