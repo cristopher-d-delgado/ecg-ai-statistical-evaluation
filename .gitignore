@@ -212,6 +212,12 @@ data/
 # Add splits folder to .gitignore
 splits/
 
-# Ignore artifacts folder entirely except the pos_weight
-artifacts/
-!artifacts/pos_weight.npy
+# Artifacts — large files not tracked by git
+artifacts/*.pkl
+artifacts/*.npy
+artifacts/*.joblib
+
+# General
+*.pkl
+*.npy
+*.joblib
