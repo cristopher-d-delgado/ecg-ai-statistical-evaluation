@@ -1,0 +1,4 @@
+Model,95% CI
+Logistic Regression,0.8528 (0.8433–0.8632)
+Random Forest,0.8628 (0.8535–0.8726)
+ResNet1D,0.9038 (0.8959–0.9115)

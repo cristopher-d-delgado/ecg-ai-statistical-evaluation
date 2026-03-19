@@ -216,6 +216,8 @@ splits/
 artifacts/*.pkl
 artifacts/*.npy
 artifacts/*.joblib
+artifacts/*.pt
+artifacts/*.pth
 
 # General
 *.pkl
