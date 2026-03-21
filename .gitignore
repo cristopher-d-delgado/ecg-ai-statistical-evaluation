@@ -210,7 +210,6 @@ __marimo__/
 data/ 
 
 # Add splits folder to .gitignore
-<<<<<<< HEAD
 splits/
 
 # Artifacts — large files not tracked by git
@@ -224,6 +223,3 @@ artifacts/*.pth
 *.pkl
 *.npy
 *.joblib
-=======
-splits/
->>>>>>> 2c26a6724fe6b702fb05f8977181dc5d9620046f
