@@ -23,8 +23,10 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.utils.data import Dataset
 from pathlib import Path
-from sklearn.metrics import roc_auc_score, f1_score, confusion_matrix
+from sklearn.metrics import roc_auc_score, f1_score, confusion_matrix, roc_curve, auc
+from scipy.stats import skew, kurtosis as kurt
 from tqdm import tqdm
 import wfdb 
 from preprocessing import preprocess
@@ -32,6 +34,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # Module level const
+CLASS_ORDER = ['NORM', 'MI', 'STTC', 'CD', 'HYP']
 
 # -- Functions for Logistic and RF Models --------------------------------------
 def extract_features(signal: np.ndarray) -> np.ndarray:
@@ -114,7 +117,7 @@ def build_feature_matrix(df: pd.DataFrame, path: Path,
 
 # -- Dataset -------------------------------------------------------------------
 # Create Pytorch dataset class
-class PTBXLDataset(nn.Dataset):
+class PTBXLDataset(Dataset):
     """
     PyTorch Dataset for PTB-XL 12-lead ECG classification.
 
@@ -196,9 +199,10 @@ class PTBXLDataset(nn.Dataset):
         return signal
 
 # ── Architecture ──────────────────────────────────────────────────────────────
+# Define the a Simple ResNet Block 
 class ResBlock1D(nn.Module):
     """
-    Single 1D residual block with two convolutional layers and a skip connection.
+    Single 1D block with two convolutional layers and a skip connection.
 
     Args:
         in_channels (int): Number of input channels.
@@ -207,24 +211,27 @@ class ResBlock1D(nn.Module):
         stride (int): Stride for first convolution. Default 1.
         dropout (float): Dropout probability. Default 0.2.
     """
+    def __init__ (self, in_channels: int, out_channels: int, kernel_size: int = 7, stride: int = 1, dropout: float = 0.2):
+        super().__init__() # Adopt properties of nn.Module
 
-    def __init__(self, in_channels: int, out_channels: int,
-                 kernel_size: int = 7, stride: int = 1,
-                 dropout: float = 0.2):
-        super().__init__()
-        padding = kernel_size // 2
+        padding = kernel_size // 2 # Should be 1
 
+        # Define the blocks
         self.main = nn.Sequential(
-            nn.Conv1d(in_channels, out_channels, kernel_size,
-                      stride=stride, padding=padding, bias=False),
+            nn.Conv1d(
+                in_channels=in_channels, out_channels=out_channels, 
+                kernel_size=kernel_size, stride=stride, padding=padding
+            ),
             nn.BatchNorm1d(out_channels),
             nn.ReLU(inplace=True),
             nn.Dropout(dropout),
-            nn.Conv1d(out_channels, out_channels, kernel_size,
-                      stride=1, padding=padding, bias=False),
+            nn.Conv1d(
+                in_channels=out_channels, out_channels=out_channels, 
+                kernel_size=kernel_size, stride=1, padding=padding
+            ),
             nn.BatchNorm1d(out_channels),
         )
-
+        # Skip path — Sequential if projection needed, Identity otherwise
         self.skip = nn.Sequential(
             nn.Conv1d(in_channels, out_channels, kernel_size=1,
                       stride=stride, bias=False),
@@ -234,35 +241,17 @@ class ResBlock1D(nn.Module):
         self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # This addition is why forward() is unavoidable in ResBlock
         return self.relu(self.main(x) + self.skip(x))
 
-
+# Now we will define the entire ResNet Architecture 
 class ResNet1D(nn.Module):
-    """
-    8-block 1D ResNet for multi-label ECG classification.
-
-    Input shape:  (batch, n_leads, timesteps)
-    Output shape: (batch, n_classes) — raw logits
-
-    Args:
-        n_leads (int): Number of ECG leads. Default 12.
-        n_classes (int): Number of output classes. Default 5.
-        base_filters (int): Base number of filters. Default 64.
-        dropout (float): Dropout probability. Default 0.2.
-
-    Example:
-        >>> model  = ResNet1D(n_leads=12, n_classes=5)
-        >>> x      = torch.randn(32, 12, 1000)
-        >>> logits = model(x)
-        >>> logits.shape
-        torch.Size([32, 5])
-    """
-
     def __init__(self, n_leads: int = 12, n_classes: int = 5,
                  base_filters: int = 64, dropout: float = 0.2):
         super().__init__()
         f = base_filters
 
+        # Stem — fully Sequential
         self.stem = nn.Sequential(
             nn.Conv1d(n_leads, f, kernel_size=15,
                       stride=2, padding=7, bias=False),
@@ -271,22 +260,25 @@ class ResNet1D(nn.Module):
             nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
         )
 
+        # 8 blocks — Sequential of ResBlock1D objects; Use 4 for now since 8 might be overkill
         self.blocks = nn.Sequential(
-            ResBlock1D(f,     f,     dropout=dropout),
-            ResBlock1D(f,     f,     dropout=dropout),
-            ResBlock1D(f,     f * 2, stride=2, dropout=dropout),
-            ResBlock1D(f * 2, f * 2, dropout=dropout),
-            ResBlock1D(f * 2, f * 4, stride=2, dropout=dropout),
-            ResBlock1D(f * 4, f * 4, dropout=dropout),
-            ResBlock1D(f * 4, f * 8, stride=2, dropout=dropout),
-            ResBlock1D(f * 8, f * 8, dropout=dropout),
+            ResBlock1D(f, f, dropout=dropout),  # block 1
+            #ResBlock1D(f, f, dropout=dropout),  # block 2
+            ResBlock1D(f, f * 2, stride=2, dropout=dropout),  # block 3
+            #ResBlock1D(f * 2, f * 2, dropout=dropout),  # block 4
+            ResBlock1D(f * 2, f * 4, stride=2, dropout=dropout),  # block 5
+            ResBlock1D(f * 4, f * 4, dropout=dropout),  # block 6
+            #ResBlock1D(f * 4, f * 8, stride=2, dropout=dropout),  # block 7
+            #ResBlock1D(f * 8, f * 8, dropout=dropout),  # block 8
         )
 
+        # Head — fully Sequential
         self.head = nn.Sequential(
             nn.AdaptiveAvgPool1d(1),
             nn.Flatten(),
             nn.Dropout(dropout),
-            nn.Linear(f * 8, n_classes)
+            #nn.Linear(f * 8, n_classes)
+            nn.Linear(f * 4, n_classes)
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -294,7 +286,6 @@ class ResNet1D(nn.Module):
         x = self.blocks(x)
         x = self.head(x)
         return x
-
 
 def count_parameters(model: nn.Module) -> int:
     """
@@ -307,7 +298,6 @@ def count_parameters(model: nn.Module) -> int:
         int: Number of trainable parameters.
     """
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
-
 
 # ── Training utilities ────────────────────────────────────────────────────────
 class EarlyStopping:
@@ -417,7 +407,6 @@ def val_epoch(model: nn.Module, loader, criterion,
     macro_auc  = roc_auc_score(all_labels, all_probs, average='macro')
 
     return mean_loss, macro_auc, all_probs, all_labels
-
 
 # ── Calibration ───────────────────────────────────────────────────────────────
 class TemperatureScaling(nn.Module):
@@ -831,6 +820,89 @@ def plot_auc_with_ci(ci_data: dict) -> plt.Figure:
     fig.tight_layout()
     return fig
 
+def plot_roc_curves(y_true: np.ndarray,
+                    model_probs: dict,
+                    class_order: list) -> plt.Figure:
+    """
+    Plot ROC curves for all models on the same axes,
+    one subplot per diagnostic superclass plus a macro subplot.
+
+    Args:
+        y_true (np.ndarray): Binary label matrix of shape (N, n_classes).
+        model_probs (dict): Keys are model names, values are prob matrices.
+        class_order (list): Class names.
+
+    Returns:
+        plt.Figure
+    """
+    MODEL_COLORS = {
+        'Logistic Regression': '#888780',
+        'Random Forest':       '#EF9F27',
+        'ResNet1D':            '#378ADD',
+    }
+
+    n_classes = len(class_order)
+    fig, axes = plt.subplots(2, 3, figsize=(15, 9))
+    axes      = axes.flatten()
+
+    # ── Per-class ROC curves ──────────────────────────────────────────────────
+    for i, cls in enumerate(class_order):
+        ax = axes[i]
+
+        for model_name, probs in model_probs.items():
+            fpr, tpr, _ = roc_curve(y_true[:, i], probs[:, i])
+            roc_auc     = auc(fpr, tpr)
+            ax.plot(fpr, tpr,
+                    color     = MODEL_COLORS[model_name],
+                    linewidth = 1.5,
+                    label     = f"{model_name} (AUC={roc_auc:.3f})")
+
+        ax.plot([0, 1], [0, 1], color='gray', linewidth=0.8,
+                linestyle='--', label='Random classifier')
+        ax.set_title(cls, fontsize=11, fontweight='bold')
+        ax.set_xlabel('False positive rate')
+        ax.set_ylabel('True positive rate')
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        ax.legend(fontsize=7, loc='lower right')
+        sns.despine(ax=ax)
+
+    # ── Macro ROC — average across classes ───────────────────────────────────
+    ax = axes[5]
+
+    for model_name, probs in model_probs.items():
+        # Interpolate all ROC curves to common FPR grid then average
+        mean_fpr = np.linspace(0, 1, 200)
+        tprs     = []
+
+        for i in range(n_classes):
+            fpr, tpr, _ = roc_curve(y_true[:, i], probs[:, i])
+            tprs.append(np.interp(mean_fpr, fpr, tpr))
+
+        mean_tpr     = np.mean(tprs, axis=0)
+        mean_tpr[-1] = 1.0
+        macro_auc    = auc(mean_fpr, mean_tpr)
+
+        ax.plot(mean_fpr, mean_tpr,
+                color     = MODEL_COLORS[model_name],
+                linewidth = 1.5,
+                label     = f"{model_name} (AUC={macro_auc:.3f})")
+
+    ax.plot([0, 1], [0, 1], color='gray', linewidth=0.8,
+            linestyle='--', label='Random classifier')
+    ax.set_title('Macro (mean)', fontsize=11, fontweight='bold')
+    ax.set_xlabel('False positive rate')
+    ax.set_ylabel('True positive rate')
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.legend(fontsize=7, loc='lower right')
+    sns.despine(ax=ax)
+
+    fig.suptitle('ROC curves — model comparison',
+                 fontsize=13, fontweight='bold')
+    fig.tight_layout()
+    return fig
+
 # ── Plot ResNet1D per-class CI ─────────────────────────────────────────────────
 def plot_per_class_ci(class_ci_df: pd.DataFrame) -> plt.Figure:
     """
@@ -882,115 +954,5 @@ def plot_per_class_ci(class_ci_df: pd.DataFrame) -> plt.Figure:
     ax.set_xlim(0.78, 0.98)
     ax.legend()
     sns.despine(ax=ax)
-    fig.tight_layout()
-    return fig
-
-                               model_probs: dict,
-                               class_order: list,
-                               n_bins: int = 10) -> plt.Figure:
-    """
-    Plot reliability diagrams (calibration curves) for all models,
-    one subplot per class plus macro average.
-
-    Args:
-        y_true (np.ndarray): Binary label matrix of shape (N, n_classes).
-        model_probs (dict): Keys are model names, values are prob matrices.
-        class_order (list): Class names.
-        n_bins (int): Number of calibration bins. Default 10.
-
-    Returns:
-        plt.Figure
-    """
-    # Define model colors
-    MODEL_COLORS = {
-        'Logistic Regression': '#888780',
-        'Random Forest':       '#EF9F27',
-        'ResNet1D':            '#378ADD',
-    }
-    # Define number of classes 
-    n_classes = len(class_order)
-    # Create figure containing subplots
-    fig, axes = plt.subplots(2, 3, figsize=(15, 9))
-    axes      = axes.flatten() # Flatten axes to iterate on them 
-
-    for i, cls in enumerate(class_order):
-        ax = axes[i] # Access on of the axes
-        bin_edges = np.linspace(0, 1, n_bins + 1) 
-
-        for model_name, probs in model_probs.items():
-            bin_confs = []
-            bin_accs  = []
-
-            for lo, hi in zip(bin_edges[:-1], bin_edges[1:]):
-                mask = (probs[:, i] >= lo) & (probs[:, i] < hi)
-                if mask.sum() == 0:
-                    continue
-                bin_confs.append(probs[:, i][mask].mean())
-                bin_accs.append(y_true[:, i][mask].mean())
-
-            ece = compute_ece(y_true[:, i], probs[:, i], n_bins)
-            ax.plot(bin_confs, bin_accs,
-                    color     = MODEL_COLORS[model_name],
-                    linewidth = 1.5,
-                    marker    = 'o',
-                    markersize= 4,
-                    label     = f"{model_name} (ECE={ece:.3f})")
-
-        ax.plot([0, 1], [0, 1], color='gray', linewidth=0.8,
-                linestyle='--', label='Perfect calibration')
-        ax.fill_between([0, 1], [0, 1], [0, 1],
-                         alpha=0.05, color='gray')
-        ax.set_title(cls, fontsize=11, fontweight='bold')
-        ax.set_xlabel('Mean predicted probability')
-        ax.set_ylabel('Actual positive rate')
-        ax.set_xlim(0, 1)
-        ax.set_ylim(0, 1)
-        ax.legend(fontsize=7, loc='upper left')
-        sns.despine(ax=ax)
-
-    # ── Macro reliability diagram — average across classes ────────────────────
-    ax        = axes[5]
-    bin_edges = np.linspace(0, 1, n_bins + 1)
-
-    for model_name, probs in model_probs.items():
-        all_bin_confs = []
-        all_bin_accs  = []
-
-        for lo, hi in zip(bin_edges[:-1], bin_edges[1:]):
-            confs = []
-            accs  = []
-            for i in range(n_classes):
-                mask = (probs[:, i] >= lo) & (probs[:, i] < hi)
-                if mask.sum() == 0:
-                    continue
-                confs.append(probs[:, i][mask].mean())
-                accs.append(y_true[:, i][mask].mean())
-            if confs:
-                all_bin_confs.append(np.mean(confs))
-                all_bin_accs.append(np.mean(accs))
-
-        macro_ece = np.mean([
-            compute_ece(y_true[:, i], probs[:, i], n_bins)
-            for i in range(n_classes)
-        ])
-        ax.plot(all_bin_confs, all_bin_accs,
-                color     = MODEL_COLORS[model_name],
-                linewidth = 1.5,
-                marker    = 'o',
-                markersize= 4,
-                label     = f"{model_name} (ECE={macro_ece:.3f})")
-
-    ax.plot([0, 1], [0, 1], color='gray', linewidth=0.8,
-            linestyle='--', label='Perfect calibration')
-    ax.set_title('Macro (mean)', fontsize=11, fontweight='bold')
-    ax.set_xlabel('Mean predicted probability')
-    ax.set_ylabel('Actual positive rate')
-    ax.set_xlim(0, 1)
-    ax.set_ylim(0, 1)
-    ax.legend(fontsize=7, loc='upper left')
-    sns.despine(ax=ax)
-
-    fig.suptitle('Reliability diagrams — calibration comparison',
-                 fontsize=13, fontweight='bold')
     fig.tight_layout()
     return fig

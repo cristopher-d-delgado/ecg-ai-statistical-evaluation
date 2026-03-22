@@ -623,3 +623,98 @@ def plot_calibration_comparison(y_true: np.ndarray,
     fig.tight_layout()
     return fig
 
+# ── Plot reliability diagrams before and after ────────────────────────────────
+def plot_calibration_comparison(y_true: np.ndarray,
+                                 probs_before: np.ndarray,
+                                 probs_after: np.ndarray,
+                                 class_order: list,
+                                 n_bins: int = 10) -> plt.Figure:
+    """
+    Plot reliability diagrams before and after temperature scaling
+    for each class side by side.
+
+    Args:
+        y_true (np.ndarray): Binary label matrix (N, n_classes).
+        probs_before (np.ndarray): Uncalibrated probabilities (N, n_classes).
+        probs_after (np.ndarray): Calibrated probabilities (N, n_classes).
+        class_order (list): Class names.
+        n_bins (int): Number of bins. Default 10.
+
+    Returns:
+        plt.Figure
+    """
+    n_classes = len(class_order)
+    fig, axes = plt.subplots(2, 3, figsize=(15, 9))
+    axes      = axes.flatten()
+    bin_edges = np.linspace(0, 1, n_bins + 1)
+
+    for i, cls in enumerate(class_order):
+        ax = axes[i]
+
+        for probs, label, color in [
+            (probs_before, 'Before (ECE={:.3f})'.format(
+                compute_ece(y_true[:, i], probs_before[:, i])), '#D4537E'),
+            (probs_after,  'After  (ECE={:.3f})'.format(
+                compute_ece(y_true[:, i], probs_after[:, i])),  '#378ADD'),
+        ]:
+            bin_confs = []
+            bin_accs  = []
+            for lo, hi in zip(bin_edges[:-1], bin_edges[1:]):
+                mask = (probs[:, i] >= lo) & (probs[:, i] < hi)
+                if mask.sum() == 0:
+                    continue
+                bin_confs.append(probs[:, i][mask].mean())
+                bin_accs.append(y_true[:, i][mask].mean())
+
+            ax.plot(bin_confs, bin_accs, color=color,
+                    linewidth=1.5, marker='o', markersize=4, label=label)
+
+        ax.plot([0, 1], [0, 1], color='gray', linewidth=0.8,
+                linestyle='--', label='Perfect calibration')
+        ax.set_title(cls, fontsize=11, fontweight='bold')
+        ax.set_xlabel('Mean predicted probability')
+        ax.set_ylabel('Actual positive rate')
+        ax.set_xlim(0, 1); ax.set_ylim(0, 1)
+        ax.legend(fontsize=8, loc='upper left')
+        sns.despine(ax=ax)
+
+    # ── Macro subplot ─────────────────────────────────────────────────────────
+    ax = axes[5]
+    for probs, label, color in [
+        (probs_before, 'Before (ECE={:.3f})'.format(
+            np.mean([compute_ece(y_true[:, i], probs_before[:, i])
+                     for i in range(n_classes)])), '#D4537E'),
+        (probs_after,  'After  (ECE={:.3f})'.format(
+            np.mean([compute_ece(y_true[:, i], probs_after[:, i])
+                     for i in range(n_classes)])),  '#378ADD'),
+    ]:
+        all_confs = []
+        all_accs  = []
+        for lo, hi in zip(bin_edges[:-1], bin_edges[1:]):
+            confs = []; accs = []
+            for i in range(n_classes):
+                mask = (probs[:, i] >= lo) & (probs[:, i] < hi)
+                if mask.sum() == 0:
+                    continue
+                confs.append(probs[:, i][mask].mean())
+                accs.append(y_true[:, i][mask].mean())
+            if confs:
+                all_confs.append(np.mean(confs))
+                all_accs.append(np.mean(accs))
+
+        ax.plot(all_confs, all_accs, color=color,
+                linewidth=1.5, marker='o', markersize=4, label=label)
+
+    ax.plot([0, 1], [0, 1], color='gray', linewidth=0.8,
+            linestyle='--', label='Perfect calibration')
+    ax.set_title('Macro (mean)', fontsize=11, fontweight='bold')
+    ax.set_xlabel('Mean predicted probability')
+    ax.set_ylabel('Actual positive rate')
+    ax.set_xlim(0, 1); ax.set_ylim(0, 1)
+    ax.legend(fontsize=8, loc='upper left')
+    sns.despine(ax=ax)
+
+    fig.suptitle('Reliability diagrams — before vs after temperature scaling',
+                 fontsize=13, fontweight='bold')
+    fig.tight_layout()
+    return fig
