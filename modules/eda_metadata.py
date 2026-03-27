@@ -19,11 +19,7 @@ from itertools import combinations
 
 # Module-level constants
 CLASS_ORDER = ['NORM', 'MI', 'STTC', 'CD', 'HYP']
-<<<<<<< HEAD
-COLORS      = ['#378ADD', '#1D9E75', "#0C0C0B", '#D4537E', '#7F77DD']
-=======
 COLORS      = ['#378ADD', '#1D9E75', '#EF9F27', '#D4537E', '#7F77DD']
->>>>>>> 2c26a6724fe6b702fb05f8977181dc5d9620046f
 SEX_PALETTE = {'Female': '#D4537E', 'Male': '#378ADD'}
 
 
