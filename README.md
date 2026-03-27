@@ -18,10 +18,11 @@ The project trains a 1D ResNet on 12-lead ECG signals, compares it against logis
 |---|---|---|
 | Logistic Regression | 0.8528 | 0.8433–0.8632 |
 | Random Forest | 0.8628 | 0.8535–0.8726 |
-| **ResNet1D (8 blocks)** | **0.9038** | **0.8959–0.9115** |
+| **ResNet1D (4 blocks)** | **0.9038** | **0.8959–0.9115** |
 
 ResNet1D significantly outperforms both baselines (DeLong test, p < 0.01). The largest per-class improvement is observed for MI (ΔAUC = +0.103 over LR, p < 0.001) and CD (ΔAUC = +0.064, p < 0.001). STTC shows no statistically significant difference across models.
 
+<img src="figures/figure1_model_comparison.png" width="700"/>
 ---
 
 ## Dataset
@@ -34,7 +35,7 @@ ResNet1D significantly outperforms both baselines (DeLong test, p < 0.01). The l
 - 5 diagnostic superclasses: NORM, MI, STTC, CD, HYP
 - Recommended 10-fold stratified splits with patient-level assignment
 
-![PTB-XL Barchart]()
+<img src="figures/global_demographics/diagnosis_prevalence.png" width="700"/>
 
 **Citation:**
 Wagner, P., Strodthoff, N., Bousseljot, R., Samek, W., & Schaeffter, T. (2022). PTB-XL, a large publicly available electrocardiography dataset (version 1.0.3). *PhysioNet*. https://doi.org/10.13026/kfzx-aw45
@@ -126,6 +127,8 @@ assert len(set(train_patient_ids) & set(test_patient_ids)) == 0
 All ECG signals undergo a two-step preprocessing pipeline:
 
 1. Zero-phase Butterworth bandpass filter (0.5–40 Hz, order 4) — removes baseline wander and high-frequency noise while preserving all clinically meaningful ECG components. Confirmed by PSD analysis across all 12 leads.
+<img src="figures/">
+
 2. Per-record z-score normalization across all leads jointly — preserves the clinically meaningful amplitude difference between limb leads (std ≈ 0.13–0.16 mV) and precordial leads (std ≈ 0.22–0.33 mV).
 
 ### Architecture
