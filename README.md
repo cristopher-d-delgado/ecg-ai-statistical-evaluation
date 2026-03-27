@@ -4,201 +4,269 @@
 
 ---
 
-## 📌 Project Overview
+## Overview
 
-This project develops and statistically validates a deep learning model for multi-label ECG classification using the **PTB-XL dataset**.
+This project develops and statistically validates a deep learning model for multi-label ECG diagnostic classification using the **PTB-XL dataset** (PhysioNet, v1.0.3). It is structured to reflect medical device–grade biostatistical rigor, clinical AI best practices, and regulatory-style validation methodology.
 
-It is designed to reflect:
-
-* 🏥 Medical device–grade biostatistical rigor
-* 🤖 Clinical AI model development best practices
-* 📊 Regulatory-style validation methodology
-* 🔬 Reproducible scientific research standards
+The project trains a 1D ResNet on 12-lead ECG signals, compares it against logistic regression and random forest baselines, and evaluates performance using bootstrap confidence intervals, DeLong tests, calibration analysis, and subgroup analysis across sex, age, and signal quality.
 
 ---
 
-## 🎯 Project Objectives
+## Results Summary
 
-1. Develop a deep learning model for ECG diagnostic classification.
-2. Perform rigorous statistical validation of model performance.
-3. Evaluate calibration, robustness, and subgroup behavior.
-4. Compare deep learning performance against classical statistical models.
-5. Structure the project as if preparing for regulatory or clinical deployment.
+| Model | Test Macro-AUC | 95% CI |
+|---|---|---|
+| Logistic Regression | 0.8528 | 0.8433–0.8632 |
+| Random Forest | 0.8628 | 0.8535–0.8726 |
+| **ResNet1D (8 blocks)** | **0.9038** | **0.8959–0.9115** |
 
----
-
-## 🏥 Clinical Framing
-
-### Intended Use
-
-Automated multi-label classification of major ECG diagnostic superclasses.
-
-### Target Population
-
-Adult patients represented in PTB-XL ECG recordings.
-
-### Primary Endpoint
-
-* **Macro-AUC** across diagnostic superclasses.
-
-### Secondary Endpoints
-
-* Per-class AUC
-* Sensitivity & Specificity
-* F1-score
-* Precision-Recall AUC
-* Calibration metrics (ECE, Brier score)
+ResNet1D significantly outperforms both baselines (DeLong test, p < 0.01). The largest per-class improvement is observed for MI (ΔAUC = +0.103 over LR, p < 0.001) and CD (ΔAUC = +0.064, p < 0.001). STTC shows no statistically significant difference across models.
 
 ---
 
-## 📊 Statistical Analysis Plan (SAP)
+## Dataset
 
-### Primary Analysis
+**PTB-XL** — a large publicly available electrocardiography dataset.
 
-* Compute Macro-AUC on held-out test set.
-* Estimate 95% confidence intervals via bootstrap (≥1000 resamples).
+- 21,799 clinical 12-lead ECGs from 18,869 patients
+- 10 seconds per recording at 500 Hz (100 Hz downsampled version used)
+- Annotated by up to two cardiologists using SCP-ECG standard
+- 5 diagnostic superclasses: NORM, MI, STTC, CD, HYP
+- Recommended 10-fold stratified splits with patient-level assignment
 
-### Secondary Analyses
+![PTB-XL Barchart]()
 
-* Per-class ROC curves
-* Micro vs Macro AUC
-* Sensitivity & Specificity at fixed thresholds
-* F1-score evaluation
+**Citation:**
+Wagner, P., Strodthoff, N., Bousseljot, R., Samek, W., & Schaeffter, T. (2022). PTB-XL, a large publicly available electrocardiography dataset (version 1.0.3). *PhysioNet*. https://doi.org/10.13026/kfzx-aw45
 
-### Calibration Analysis
+**Download:**
+```bash
+aws s3 sync --no-sign-request s3://physionet-open/ptb-xl/1.0.3/data
+```
 
-* Reliability diagrams
-* Expected Calibration Error (ECE)
-* Brier Score
-* Temperature scaling (post-hoc calibration)
-
-### Model Comparison
-
-Compare:
-
-* Logistic Regression baseline
-* Random Forest baseline
-* Deep Learning model (ResNet1D)
-
-Statistical comparison via:
-
-* DeLong test for AUC difference
-
-### Subgroup Analyses
-
-Evaluate performance stratified by:
-
-* Sex
-* Age group
-* Diagnostic category prevalence
+Place the downloaded data at `data/`.
 
 ---
 
-## 🤖 Deep Learning Framework
-
-### Architecture
-
-* 1D Convolutional Neural Network (ResNet-style)
-* Multi-label sigmoid output layer
-* Weighted loss for class imbalance
-
-### Training Strategy
-
-* Patient-level train/validation/test split
-* Stratified sampling
-* Mixed precision training
-* Deterministic seeding for reproducibility
-
----
-
-## 🧪 Validation Philosophy
-
-This project emphasizes:
-
-* No patient-level data leakage
-* Reproducible experiment configuration
-* Explicit reporting of uncertainty
-* Statistical comparison rather than anecdotal improvement
-* Calibration assessment (not just discrimination)
-
----
-
-## 📂 Repository Structure
+## Project Structure
 
 ```
-ecg-ai-statistical-validation/
-│
-├── data/                  # PTB-XL dataset
-├── notebooks/             # EDA and exploratory analyses
-├── src/
-│   ├── data/              # Dataset loading & preprocessing
-│   ├── models/            # Model architectures
-│   ├── training/          # Training loops
-│   ├── evaluation/        # Metrics & statistical tests
-│   └── utils/
-│
-├── results/               # Model outputs & figures
-├── models/                # Saved trained models
-├── ptbxl_env.yml          # Conda environment
-└── README.md
+
 ```
 
 ---
 
-## 📈 Evaluation Metrics
+## Installation
 
-| Category            | Metrics                   |
-| ------------------- | ------------------------- |
-| Discrimination      | Macro-AUC, Micro-AUC      |
-| Threshold-based     | Sensitivity, Specificity  |
-| Multi-label         | F1-score                  |
-| Calibration         | ECE, Brier Score          |
-| Statistical Testing | Bootstrap CI, DeLong Test |
+**1. Clone the repository**
+```bash
+git clone https://github.com/cristopher-d-delgado/ecg-ai-statistical-evaluation.git
+cd ecg-ai-statistical-evaluation
+```
 
----
-
-## 🔬 Reproducibility
-
-* Fixed random seeds
-* Environment specification (`ptbxl_env.yml`)
-* Deterministic PyTorch settings
-* Explicit dataset split logging
-
----
-
-## 🚀 Installation
-
-### 1️⃣ Create Environment
-
+**2. Create and activate environment**
 ```bash
 conda create -n ptbxl_ai python=3.10
 conda activate ptbxl_ai
 ```
 
-### 2️⃣ Install Dependencies
-
+**3. Install dependencies**
 ```bash
-conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
-pip install numpy pandas scipy scikit-learn matplotlib seaborn wfdb
+pip install -r requirements.txt
+```
+
+**4. Download PTB-XL dataset**
+```bash
+aws s3 sync --no-sign-request s3://physionet-open/ptb-xl/1.0.3/data
 ```
 
 ---
 
-## 📥 Dataset Download
+## Reproducing Results
 
-Example download via AWS CLI:
+Run the notebooks in order:
 
+**Step 1 — EDA**
 ```bash
-aws s3 sync --no-sign-request s3://physionet-open/ptb-xl/1.0.3/ data/ptbxl
+jupyter notebook notebooks/eda.ipynb
 ```
+Covers metadata EDA, signal quality analysis, label co-occurrence, PSD analysis, and preprocessing validation. Saves `pos_weight.npy` and `test_artifact_flags.csv` to `artifacts/`.
+
+**Step 2 — Modeling**
+```bash
+jupyter notebook notebooks/modeling.ipynb
+```
+Trains logistic regression, random forest, and ResNet1D. Runs full statistical evaluation including bootstrap CIs, DeLong test, calibration analysis, and subgroup analysis. Saves all results to `artifacts/` and figures to `figures/`.
+
+**Step 3 — Validation report**
+```bash
+jupyter notebook notebooks/validation.ipynb
+```
+Loads saved artifacts and generates the complete statistical validation report with all publication-ready figures.
 
 ---
 
-## 🧠 Positioning
+## Methodology
 
-This repository demonstrates:
+### Data splits
 
-* Clinical statistical rigor (biostatistician perspective)
-* Deep learning implementation expertise (clinical AI scientist perspective)
-* Regulatory-style validation discipline
-* Real-world medical AI evaluation methodology
+Author-recommended 10-fold stratified splits are used with strict patient-level assignment — no patient appears in more than one split. Folds 1–8 are used for training, fold 9 for validation, and fold 10 as the held-out test set. Folds 9 and 10 contain only human-validated labels.
+
+```python
+df['split'] = 'train'
+df.loc[df['strat_fold'] == 9,  'split'] = 'val'
+df.loc[df['strat_fold'] == 10, 'split'] = 'test'
+
+# Patient-level leakage check
+assert len(set(train_patient_ids) & set(test_patient_ids)) == 0
+```
+
+### Preprocessing
+
+All ECG signals undergo a two-step preprocessing pipeline:
+
+1. Zero-phase Butterworth bandpass filter (0.5–40 Hz, order 4) — removes baseline wander and high-frequency noise while preserving all clinically meaningful ECG components. Confirmed by PSD analysis across all 12 leads.
+2. Per-record z-score normalization across all leads jointly — preserves the clinically meaningful amplitude difference between limb leads (std ≈ 0.13–0.16 mV) and precordial leads (std ≈ 0.22–0.33 mV).
+
+### Architecture
+
+ResNet1D — a 1D convolutional residual network adapted from He et al. (2015) for ECG time series classification, following the benchmark architecture of Strodthoff et al. (2021).
+
+- **Input:** (batch, 12, 1000) — 12 leads × 1000 timesteps at 100 Hz
+- **Stem:** Conv1d(12→64, k=15, stride=2) + BN + ReLU + MaxPool
+- **Blocks:** 4 residual blocks with progressive channel doubling (64→128→256→512)
+- **Head:** Global average pooling → Dropout → Linear(512→5)
+- **Output:** 5 raw logits — sigmoid applied at inference for multi-label probabilities
+- **Parameters:** ~8,000,000
+
+![model_architecture]()
+
+### Training
+
+- Loss: BCEWithLogitsLoss with `pos_weight` computed from training set class frequencies
+    - pos_weight was computed to accomadate the start weights as we have an imbalanced dataset
+- Optimizer: Adam (lr=1e-3, weight_decay=1e-4)
+- Scheduler: ReduceLROnPlateau (factor=0.5, patience=5)
+- Early stopping: patience=10, monitors validation loss
+- Batch size: 256
+- Mixed precision: enabled (RTX 3080)
+- Augmentation: Gaussian noise (p=0.5, σ=0.01) + amplitude scaling (p=0.5, ×0.9–1.1)
+- Best checkpoint: epoch with lowest validation loss
+
+### Baseline feature extraction
+
+Logistic regression and random forest operate on 156-dimensional feature vectors extracted from preprocessed signals — 13 statistical features per lead across all 12 leads (mean, std, min, max, range, absolute mean, RMS, skewness, kurtosis, p10, p25, p75, p90). The same preprocessing pipeline is applied to ensure fair comparison.
+
+---
+
+## Statistical Analysis Plan (SAP)
+
+Demonstrate how our Deep Learning model outperforms other models. 
+
+### Primary endpoint
+
+Macro-AUC on held-out test set with 95% bootstrap confidence interval (1000 resamples).
+
+### Secondary endpoints
+
+| Metric | Method |
+|---|---|
+| Per-class AUC | Bootstrap CI per class |
+| Sensitivity & Specificity | At class-optimal threshold (F1-maximising on val set) |
+| F1 score | Per class and macro average |
+| Precision-Recall AUC | Per class |
+| Calibration (ECE) | 10-bin expected calibration error |
+| Calibration (Brier) | Mean squared error + skill score vs naive baseline |
+
+### Model comparison
+
+DeLong test (Sun & Xu, 2014) comparing ResNet1D against each baseline at macro and per-class level.
+
+### Subgroup analyses
+
+Performance stratified by sex, age group (<40, 40–60, 60–80, >80), and signal quality (clean vs artifact-flagged). Each subgroup reported with macro-AUC and 95% bootstrap CI.
+
+---
+
+## Key Findings
+
+**Per-class AUC (ResNet1D)**
+
+| Class | AUC | 95% CI |
+|---|---|---|
+| NORM | 0.9340 | 0.9239–0.9438 |
+| MI | 0.9142 | 0.9015–0.9264 |
+| STTC | 0.9182 | 0.9059–0.9303 |
+| CD | 0.9055 | 0.8878–0.9218 |
+| HYP | 0.8469 | 0.8224–0.8700 |
+
+**DeLong test — ResNet1D vs Logistic Regression**
+
+| Class | ΔAUC | Z-stat | P-value | Significant |
+|---|---|---|---|---|
+| Macro | +0.051 | 3.82 | 0.000136 | Yes |
+| NORM | +0.036 | 4.36 | 0.000013 | Yes |
+| MI | +0.103 | 8.31 | <0.000001 | Yes |
+| STTC | +0.010 | 1.07 | 0.283 | No |
+| CD | +0.064 | 4.50 | 0.000007 | Yes |
+| HYP | +0.042 | 2.16 | 0.031 | Yes |
+
+**Subgroup macro-AUC**
+
+| Subgroup | AUC |
+|---|---|
+| Female | 0.9105 |
+| Male | 0.8979 |
+| Age <40 | 0.9007 |
+| Age 40–60 | 0.8909 |
+| Age 60–80 | 0.8953 |
+| Age >80 | 0.8574 |
+| Clean signals | 0.9043 |
+| Noisy signals | 0.9028 |
+
+**Calibration**
+
+ResNet1D macro ECE = 0.101, substantially higher than logistic regression (0.024) and random forest (0.037). Both global and per-class temperature scaling produced negligible improvement, suggesting miscalibration is driven by class imbalance rather than uniform overconfidence. Calibration is identified as a limitation requiring future work.
+
+---
+
+## Limitations
+
+1. **Calibration** — ResNet1D is poorly calibrated (macro ECE = 0.101), particularly for rare classes. Temperature scaling did not resolve this. Per-class isotonic regression on a larger calibration set is recommended.
+
+2. **Age subgroup** — The <40 age group contains very few pathological cases (MI n=7, HYP n=11). AUC estimates for this subgroup should be interpreted with caution.
+
+3. **External validation** — All results are from PTB-XL fold 10. Generalisability to signals from different devices, institutions, or patient populations is unknown.
+
+4. **Single dataset** — PTB-XL was collected between 1989–1996 from a single institution. Contemporary ECG devices and patient demographics may differ.
+
+---
+
+## References
+
+He, K., Zhang, X., Ren, S., & Sun, J. (2015). Deep residual learning for image recognition. *arXiv*. https://arxiv.org/abs/1512.03385
+
+Strodthoff, N., Wagner, P., Schaeffter, T., & Samek, W. (2021). Deep learning for ECG analysis: benchmarks and insights from PTB-XL. *IEEE Journal of Biomedical and Health Informatics*, 25(5), 1519–1528. https://doi.org/10.1109/JBHI.2020.3022989
+
+Wagner, P., Strodthoff, N., Bousseljot, R., Samek, W., & Schaeffter, T. (2022). PTB-XL, a large publicly available electrocardiography dataset (version 1.0.3). *PhysioNet*. https://doi.org/10.13026/kfzx-aw45
+
+Guo, C., Pleiss, G., Sun, Y., & Weinberger, K. Q. (2017). On calibration of modern neural networks. *ICML 2017*. https://arxiv.org/abs/1706.04599
+
+Sun, X., & Xu, W. (2014). Fast implementation of DeLong's algorithm for comparing the areas under correlated receiver operating curves. *IEEE Signal Processing Letters*, 21(11), 1389–1393.
+
+Chicco, D., Karaiskou, A., & De Vos, M. (2024). Ten quick tips for electrocardiogram (ECG) signal processing. *PeerJ Computer Science*, 10, e2295. https://doi.org/10.7717/peerj-cs.2295
+
+---
+
+## Citation
+
+If you use this code or methodology, please cite:
+
+```bibtex
+@misc{delgado2025ecgai,
+  author = {Delgado, Cristopher},
+  title  = {ECG AI Statistical Validation},
+  year   = {2025},
+  url    = {https://github.com/cristopher-d-delgado/ecg-ai-statistical-evaluation}
+}
+```

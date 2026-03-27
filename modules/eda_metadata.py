@@ -94,7 +94,7 @@ def cohort_summary_stats(df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=["Characteristic", "Value"])
 
 
-def plot_cohort_summary_stats(df: pd.DataFrame) -> dict:
+def plot_cohort_summary_stats(df: pd.DataFrame, cohort: str) -> dict:
     """
     Visualize cohort-level summary statistics.
     Companion plotting function to cohort_summary_stats().
@@ -102,6 +102,7 @@ def plot_cohort_summary_stats(df: pd.DataFrame) -> dict:
     Args:
         df (pd.DataFrame): Raw dataframe containing 'age', 'sex',
                            and 'superclass' columns.
+        cohort (str): Specify the cohort of 'Global', 'Train', 'Test', 'Val'
 
     Returns:
         dict: Dictionary of matplotlib figures keyed by plot name:
@@ -128,7 +129,7 @@ def plot_cohort_summary_stats(df: pd.DataFrame) -> dict:
     )
     ax1.axvline(df['age'].median(), color='#D4537E', linewidth=1.5,
                 linestyle='--', label=f"Median: {df['age'].median():.0f} yrs")
-    ax1.set_title('Age distribution — full cohort', fontsize=13, fontweight='bold')
+    ax1.set_title(f'Age distribution — {cohort} cohort', fontsize=13, fontweight='bold')
     ax1.set_xlabel('Age (years)')
     ax1.set_ylabel('Number of records')
     ax1.legend()
@@ -152,7 +153,7 @@ def plot_cohort_summary_stats(df: pd.DataFrame) -> dict:
                  bar.get_height() + 80,
                  f'{count:,}\n({sex_percent[label]:.1f}%)',
                  ha='center', va='bottom', fontsize=10)
-    ax2.set_title('Sex distribution — full cohort', fontsize=13, fontweight='bold')
+    ax2.set_title(f'Sex distribution — {cohort} cohort', fontsize=13, fontweight='bold')
     ax2.set_ylabel('Number of records')
     ax2.set_ylim(0, sex_counts.max() * 1.2)
     sns.despine(ax=ax2)
@@ -177,7 +178,7 @@ def plot_cohort_summary_stats(df: pd.DataFrame) -> dict:
                  f'{count:,}  ({class_pct[cls]:.1f}%)',
                  va='center', fontsize=10)
     ax3.set_xlabel('Number of records')
-    ax3.set_title('Diagnosis prevalence — full cohort\n'
+    ax3.set_title(f'Diagnosis prevalence — {cohort} cohort\n'
                   '(multi-label: % of total records)',
                   fontsize=13, fontweight='bold')
     ax3.set_xlim(0, class_counts.max() * 1.25)
@@ -196,7 +197,7 @@ def plot_cohort_summary_stats(df: pd.DataFrame) -> dict:
             label=f"{sex} (n={len(subset):,})",
             ax=ax4
         )
-    ax4.set_title('Age distribution by sex — full cohort',
+    ax4.set_title(f'Age distribution by sex — {cohort} cohort',
                   fontsize=13, fontweight='bold')
     ax4.set_xlabel('Age (years)')
     ax4.set_ylabel('Density')
