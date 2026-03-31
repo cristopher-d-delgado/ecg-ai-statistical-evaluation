@@ -6,9 +6,19 @@
 
 ## Overview
 
-This project develops and statistically validates a deep learning model for multi-label ECG diagnostic classification using the **PTB-XL dataset** (PhysioNet, v1.0.3). It is structured to reflect medical device–grade biostatistical rigor, clinical AI best practices, and regulatory-style validation methodology.
+This project develops and statistically validates a deep learning model for multi-label ECG diagnostic classification using the **PTB-XL dataset** (PhysioNet, v1.0.3). It is structured to reflect medical device–grade biostatistical rigor through a Statistical Analysis Plan (SAP), clinical AI best practices, and regulatory-style validation methodology.
 
 The project trains a 1D ResNet on 12-lead ECG signals, compares it against logistic regression and random forest baselines, and evaluates performance using bootstrap confidence intervals, DeLong tests, calibration analysis, and subgroup analysis across sex, age, and signal quality.
+
+### Abbreviations
+
+| Superclass | Description |
+|------------|-------------|
+| NORM | Normal ECG |
+| MI | Myocardial Infarction |
+| STTC | ST/T Change |
+| CD | Conduction Disturbance | 
+| HYP | Hypertrophy |
 
 ---
 
@@ -20,9 +30,12 @@ The project trains a 1D ResNet on 12-lead ECG signals, compares it against logis
 | Random Forest | 0.8628 | 0.8535–0.8726 |
 | **ResNet1D (4 blocks)** | **0.9038** | **0.8959–0.9115** |
 
+
 ResNet1D significantly outperforms both baselines (DeLong test, p < 0.01). The largest per-class improvement is observed for MI (ΔAUC = +0.103 over LR, p < 0.001) and CD (ΔAUC = +0.064, p < 0.001). STTC shows no statistically significant difference across models.
 
-<img src="figures/figure1_model_comparison.png" width="700"/>
+### Model AUC Comparisons
+<img src="figures/figure1_model_comparison.png" style="width:auto; height:250px;">
+
 ---
 
 ## Dataset
@@ -35,7 +48,7 @@ ResNet1D significantly outperforms both baselines (DeLong test, p < 0.01). The l
 - 5 diagnostic superclasses: NORM, MI, STTC, CD, HYP
 - Recommended 10-fold stratified splits with patient-level assignment
 
-<img src="figures/global_demographics/diagnosis_prevalence.png" width="700"/>
+<img src="figures/global_demographics/diagnosis_prevalence.png" style="width:auto; height:250px;">
 
 **Citation:**
 Wagner, P., Strodthoff, N., Bousseljot, R., Samek, W., & Schaeffter, T. (2022). PTB-XL, a large publicly available electrocardiography dataset (version 1.0.3). *PhysioNet*. https://doi.org/10.13026/kfzx-aw45
@@ -131,6 +144,60 @@ All ECG signals undergo a two-step preprocessing pipeline:
 
 2. Per-record z-score normalization across all leads jointly — preserves the clinically meaningful amplitude difference between limb leads (std ≈ 0.13–0.16 mV) and precordial leads (std ≈ 0.22–0.33 mV).
 
+### Exploratory Data Analysis 
+#### Data Quality Check
+The source of this data is from a reputable source however we need to verify the ECG signals are as expected. It is never incorrect to verify data quality. 
+
+##### Signal Quality 
+
+**Spectral decay:** All 12 leads exhibit a consistent pattern of decreasing power with 
+increasing frequency, confirming that diagnostic ECG information is concentrated in the 
+lower frequency bands. No lead showed flat or increasing spectral profiles.
+
+**Baseline wander:** Elevated power near 0 Hz was observed across all leads, consistent 
+with low-frequency baseline wander caused by patient movement and respiration. This 
+confirms the need for a high-pass filter cutoff at 0.5 Hz as the first preprocessing step.
+
+**Bandpass cutoff justified:** The majority of signal power falls below the 40 Hz 
+threshold across all leads, confirming that a low-pass cutoff at 40 Hz preserves all 
+clinically meaningful ECG components (P wave, QRS complex, T wave) while rejecting 
+high-frequency noise. No meaningful power loss is introduced by this cutoff.
+
+**Precordial vs limb lead amplitude:** Precordial leads (V1–V6) exhibited consistently 
+higher overall power than limb leads (I, II, III, aVR, aVL, aVF), consistent with the 
+amplitude statistics observed in the lead statistics analysis (precordial std ≈ 0.22–0.33 
+vs limb std ≈ 0.13–0.16 mV). This inter-lead amplitude difference is clinically meaningful 
+and is preserved by the chosen per-record z-score normalization strategy.
+
+**Cross-lead consistency:** All 12 leads exhibited highly similar spectral shapes, 
+confirming no lead is behaving anomalously and that the data loaded correctly across 
+all channels.
+
+#### Demographics 
+##### Global
+<img src="figures/global_demographics/sex_bar.png" style="width:auto; height:250px;">
+<img src="figures/global_demographics/age_by_sex_kde.png" style="width:auto; height:250px;">
+<img src="figures/global_demographics/diagnosis_prevalence.png" style="width:auto; height:250px;">
+
+##### Training Cohort
+<img src="figures/train_demographics/sex_bar.png" style="width:auto; height:250px;">
+<img src="figures/train_demographics//age_by_sex_kde.png" style="width:auto; height:250px;">
+<img src="figures/train_demographics/diagnosis_prevalence.png" style="width:auto; height:250px;">
+
+##### Test Cohort
+<img src="figures/test_demographics/sex_bar.png" style="width:auto; height:250px;">
+<img src="figures/test_demographics/age_by_sex_kde.png" style="width:auto; height:250px;">
+<img src="figures/test_demographics/diagnosis_prevalence.png" style="width:auto; height:250px;">
+
+##### Validation Cohort
+<img src="figures/val_demographics/sex_bar.png" style="width:auto; height:250px;">
+<img src="figures/val_demographics/age_by_sex_kde.png" style="width:auto; height:250px;">
+<img src="figures/val_demographics/diagnosis_prevalence.png" style="width:auto; height:250px;">
+
+##### Decisions
+1. Unbalanced dataset can create a model that would prefer to correctly diagnose one condition rather than attempting to learn the other conditions. To address this issue we can initialize the model weights to reflect the cohort distribution. Reward the model more when correctly predicting the rarer classes. 
+2. Introduce Data Augmentation by taking the ECG Signals and introducing Gaussian Noise at random. This would create synthetic data creating more avaliable training samples for all classes. 
+
 ### Architecture
 
 ResNet1D — a 1D convolutional residual network adapted from He et al. (2015) for ECG time series classification, following the benchmark architecture of Strodthoff et al. (2021).
@@ -168,7 +235,7 @@ Demonstrate how our Deep Learning model outperforms other models.
 
 ### Primary endpoint
 
-Macro-AUC on held-out test set with 95% bootstrap confidence interval (1000 resamples).
+Macro-AUC on held-out test set with 95% bootstrap confidence interval (1000 resamples). 
 
 ### Secondary endpoints
 
@@ -185,9 +252,16 @@ Macro-AUC on held-out test set with 95% bootstrap confidence interval (1000 resa
 
 DeLong test (Sun & Xu, 2014) comparing ResNet1D against each baseline at macro and per-class level.
 
+<img src="figures/figure1_model_comparison.png" style="width:auto; height:250px;">
+<img src="figures/figure2_per_class_auc.png" style="width:auto; height:250px;">
+<img src="figures/figure3_roc_curves.png" style="width:auto; height:250px;">
+
 ### Subgroup analyses
 
 Performance stratified by sex, age group (<40, 40–60, 60–80, >80), and signal quality (clean vs artifact-flagged). Each subgroup reported with macro-AUC and 95% bootstrap CI.
+
+#### ResNet 1D Model Subgroup Analysis
+<img src="figures/figure6_subgroup.png" style="width:auto; height:250px;">
 
 ---
 
@@ -266,10 +340,10 @@ Chicco, D., Karaiskou, A., & De Vos, M. (2024). Ten quick tips for electrocardio
 If you use this code or methodology, please cite:
 
 ```bibtex
-@misc{delgado2025ecgai,
+@misc{delgado2026ecgai,
   author = {Delgado, Cristopher},
   title  = {ECG AI Statistical Validation},
-  year   = {2025},
+  year   = {2026},
   url    = {https://github.com/cristopher-d-delgado/ecg-ai-statistical-evaluation}
 }
 ```
