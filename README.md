@@ -294,7 +294,8 @@ Performance stratified by sex, age group (<40, 40–60, 60–80, >80), and signa
 
 ResNet1D macro ECE = 0.101, substantially higher than logistic regression (0.024) and random forest (0.037). Both global and per-class temperature scaling produced negligible improvement, suggesting miscalibration is driven by class imbalance rather than uniform overconfidence. Calibration is identified as a limitation requiring future work.
 
-
+<img src="figures/reliability_diagrams.png" style="width:1000px; height:auto;">
+<img src="figures/calibration_comparison.png" style="width:1000px; height:auto;">
 ---
 
 ## Limitations
