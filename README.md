@@ -168,7 +168,7 @@ and is preserved by the chosen per-record z-score normalization strategy.
 confirming no lead is behaving anomalously and that the data loaded correctly across 
 all channels.
 
-<img src="figures/psd_eda.png" style="width:auto; height:250px;">
+<img src="figures/psd_eda.png" style="width:1000px; height:auto;">
 
 #### Demographics 
 ##### Global
