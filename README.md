@@ -8,9 +8,11 @@
 
 This project develops and statistically validates a deep learning model for multi-label ECG diagnostic classification using the **PTB-XL dataset** (PhysioNet, v1.0.3). It is structured to reflect medical device–grade biostatistical rigor through a Statistical Analysis Plan (SAP), clinical AI best practices, and regulatory-style validation methodology.
 
+Automated ECG interpretation has the potential to reduce diagnostic delays in resource-limited settings and provide decision support for clinicians. This project serves as a reproducible reference implementation for rigorous clinical AI validation, structured to meet the standards expected in regulatory or peer-reviewed clinical submissions. 
+
 The project trains a 1D ResNet on 12-lead ECG signals, compares it against logistic regression and random forest baselines, and evaluates performance using bootstrap confidence intervals, DeLong tests, calibration analysis, and subgroup analysis across sex, age, and signal quality.
 
-### Abbreviations
+### Diagnostic Superclasses
 
 | Superclass | Description |
 |------------|-------------|
@@ -125,40 +127,33 @@ df.loc[df['strat_fold'] == 10, 'split'] = 'test'
 
 All ECG signals undergo a two-step preprocessing pipeline:
 
-1. Zero-phase Butterworth bandpass filter (0.5–40 Hz, order 4) — removes baseline wander and high-frequency noise while preserving all clinically meaningful ECG components. Confirmed by PSD analysis across all 12 leads.
+1. **Bandpass Filter** - Zero-phase Butterworth bandpass filter (0.5–40 Hz, order 4) — removes baseline wander and high-frequency noise while preserving all clinically meaningful ECG components (P-wave, QRS Complex, T-wave). Confirmed by PSD analysis across all 12 leads.
 
-2. Per-record z-score normalization across all leads jointly — preserves the clinically meaningful amplitude difference between limb leads (std ≈ 0.13–0.16 mV) and precordial leads (std ≈ 0.22–0.33 mV).
+2. Per-record z-score normalization across all leads preserves the clinically meaningful amplitude difference between limb leads (std ≈ 0.13–0.16 mV) and precordial leads (std ≈ 0.22–0.33 mV). Per-lead normalization was explicitly rejected as it erases this inter-lead relationship.
 
 <img src="figures/preprocess_examples.png" style="width:1000px; height:auto;">
 
 ### Exploratory Data Analysis 
-#### Data Quality Check
-The source of this data is from a reputable source however we need to verify the ECG signals are as expected. It is never incorrect to verify data quality. 
-
 #### Signal Quality 
 
-**Spectral decay:** All 12 leads exhibit a consistent pattern of decreasing power with 
+Power spectral density analysis was performed across all 21,799 records using Welch's method (nperseg=256) at 100 Hz. 
+
+##### Key findings:
+- **Spectral decay:** All 12 leads exhibit a consistent pattern of decreasing power with 
 increasing frequency, confirming that diagnostic ECG information is concentrated in the 
-lower frequency bands. No lead showed flat or increasing spectral profiles.
-
-**Baseline wander:** Elevated power near 0 Hz was observed across all leads, consistent 
-with low-frequency baseline wander caused by patient movement and respiration. This 
-confirms the need for a high-pass filter cutoff at 0.5 Hz as the first preprocessing step.
-
-**Bandpass cutoff justified:** The majority of signal power falls below the 40 Hz 
+lower frequency bands.
+- **Baseline wander:** Elevated power near 0 Hz was observed across all leads, consistent 
+with low-frequency baseline wander caused by patient movement and respiration. This confirms the need for a 
+high-pass cutoff at 0.5 Hz. 
+- **Bandpass cutoff justified:** The majority of signal power falls below the 40 Hz 
 threshold across all leads, confirming that a low-pass cutoff at 40 Hz preserves all 
 clinically meaningful ECG components (P wave, QRS complex, T wave) while rejecting 
-high-frequency noise. No meaningful power loss is introduced by this cutoff.
-
-**Precordial vs limb lead amplitude:** Precordial leads (V1–V6) exhibited consistently 
+high-frequency noise.
+- **Precordial vs limb lead amplitude:** Precordial leads (V1–V6) exhibited consistently 
 higher overall power than limb leads (I, II, III, aVR, aVL, aVF), consistent with the 
 amplitude statistics observed in the lead statistics analysis (precordial std ≈ 0.22–0.33 
 vs limb std ≈ 0.13–0.16 mV). This inter-lead amplitude difference is clinically meaningful 
 and is preserved by the chosen per-record z-score normalization strategy.
-
-**Cross-lead consistency:** All 12 leads exhibited highly similar spectral shapes, 
-confirming no lead is behaving anomalously and that the data loaded correctly across 
-all channels.
 
 <img src="figures/psd_eda.png" style="width:1000px; height:auto;">
 
@@ -183,20 +178,23 @@ all channels.
 <img src="figures/val_demographics/age_by_sex_kde.png" style="width:auto; height:250px;">
 <img src="figures/val_demographics/diagnosis_prevalence.png" style="width:auto; height:250px;">
 
-##### Decisions
-1. Unbalanced dataset can create a model that would prefer to correctly diagnose one condition rather than attempting to learn the other conditions. To address this issue we can initialize the model weights to reflect the cohort distribution. Reward the model more when correctly predicting the rarer classes. 
-2. Introduce Data Augmentation by taking the ECG Signals and introducing Gaussian Noise at random. This would create synthetic data creating more avaliable training samples for all classes. 
+##### Clinical Data Considerations
+
+The dataset exhibits meaningful class imbalance — NORM accounts for 
+44.5% of records while HYP represents only 12.4%. Two strategies were 
+adopted to address this:
+
+1. **Weighted loss** — `pos_weight` computed from training set class frequencies was passed to `BCEWithLogitsLoss`, upweighting gradient contributions from rare classes during training. This directly counteracts the tendency of the model to optimise for majority class performance at the expense of rare classes.
+2. **Data augmentation** — Gaussian noise injection (p=0.5, σ=0.01) and random amplitude scaling (p=0.5, ×0.9–1.1) were applied during training to improve generalization across the class distribution and reduce overfitting.
 
 ### Architecture
 
 ResNet1D — a 1D convolutional residual network adapted from He et al. (2015) for ECG time series classification, following the benchmark architecture of Strodthoff et al. (2021).
 
 - **Input:** (batch, 12, 1000) — 12 leads × 1000 timesteps at 100 Hz
-- **Stem:** Conv1d(12→64, k=15, stride=2) + BN + ReLU + MaxPool
-- **Blocks:** 4 residual blocks with progressive channel doubling (64→128→256→512)
-- **Head:** Global average pooling → Dropout → Linear(512→5)
-- **Output:** 5 raw logits — sigmoid applied at inference for multi-label probabilities
-- **Parameters:** ~8,000,000
+- **Blocks:** 4 residual blocks (64→128→256→256)
+- **Output:** Global average pooling → Dropout(0.2) → Linear(256→5)
+- **Parameters:** ~1,893,893
 
 <img src="figures/model_architecture.jpg" style="width:600px; height:auto;">
 
@@ -212,6 +210,17 @@ ResNet1D — a 1D convolutional residual network adapted from He et al. (2015) f
 - Augmentation: Gaussian noise (p=0.5, σ=0.01) + amplitude scaling (p=0.5, ×0.9–1.1)
 - Best checkpoint: epoch with lowest validation loss
 
+This model uses residual blocks, a technique that helps deep neural networks train more effectively.
+
+Instead of learning a completely new transformation at each layer, the model learns only the difference (or “residual”) between the input and the desired output.
+
+Each block functions doing the following:
+1. The input signal is processed through two convolutional layers
+2. At the same time, the original input is passed forward unchanged (a “skip connection”)
+3. The two paths are added together
+
+```Sumarized as: output = processed_input + original_input```
+
 ### Baseline feature extraction
 
 Logistic regression and random forest operate on 156-dimensional feature vectors extracted from preprocessed signals — 13 statistical features per lead across all 12 leads (mean, std, min, max, range, absolute mean, RMS, skewness, kurtosis, p10, p25, p75, p90). The same preprocessing pipeline is applied to ensure fair comparison.
@@ -219,14 +228,18 @@ Logistic regression and random forest operate on 156-dimensional feature vectors
 ---
 
 ## Statistical Analysis Plan (SAP)
-
-Demonstrate how our Deep Learning model outperforms other models. 
-
 ### Primary endpoint
 
-Macro-AUC on held-out test set with 95% bootstrap confidence interval (1000 resamples). 
+The primary objective is to determine whether ResNet1D achieves 
+superior macro-AUC compared to logistic regression and random forest 
+baselines on the held-out test set, with statistical significance 
+assessed via DeLong test (α = 0.05).
 
 ### Secondary endpoints
+
+Secondary objectives include 
+per-class performance characterization, calibration assessment, and 
+subgroup equity analysis across sex, age, and signal quality.
 
 | Metric | Method |
 |---|---|
@@ -292,7 +305,12 @@ Performance stratified by sex, age group (<40, 40–60, 60–80, >80), and signa
 
 **Calibration**
 
-ResNet1D macro ECE = 0.101, substantially higher than logistic regression (0.024) and random forest (0.037). Both global and per-class temperature scaling produced negligible improvement, suggesting miscalibration is driven by class imbalance rather than uniform overconfidence. Calibration is identified as a limitation requiring future work.
+ResNet1D discriminates well (macro-AUC = 0.904) but is poorly calibrated (macro ECE = 0.101). 
+When the model assigns a 70% probability to MI, the true positive rate may be substantially lower, meaning the probability values should not be used as absolute risk estimates without further calibration work.
+
+Both global (T=1.057) and per-class temperature scaling produced negligible ECE improvement, suggesting the miscalibration is driven 
+by class imbalance rather than uniform overconfidence. This is evidenced by the strong inverse relationship between class prevalence 
+and ECE — NORM (prevalence 44.5%, ECE=0.026) vs HYP (prevalence 12.4%, ECE=0.147).
 
 <img src="figures/reliability_diagrams.png" style="width:1000px; height:auto;">
 <img src="figures/calibration_comparison.png" style="width:1000px; height:auto;">
