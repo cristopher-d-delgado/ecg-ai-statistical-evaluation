@@ -34,8 +34,8 @@ The project trains a 1D ResNet on 12-lead ECG signals, compares it against logis
 ResNet1D significantly outperforms both baselines (DeLong test, p < 0.01). The largest per-class improvement is observed for MI (ΔAUC = +0.103 over LR, p < 0.001) and CD (ΔAUC = +0.064, p < 0.001). STTC shows no statistically significant difference across models.
 
 ### Model AUC Comparisons
-<img src="figures/figure1_model_comparison.png" style="width:auto; height:250px;">
-<img src="figures/figure2_per_class_auc.png" style="width:auto; height:250px;">
+<img src="figures/figure1_model_comparison.png" style="width:600px; height:auto;">
+<img src="figures/figure2_per_class_auc.png" style="width:600px; height:auto;">
 
 ---
 
@@ -49,7 +49,7 @@ ResNet1D significantly outperforms both baselines (DeLong test, p < 0.01). The l
 - 5 diagnostic superclasses: NORM, MI, STTC, CD, HYP
 - Recommended 10-fold stratified splits with patient-level assignment
 
-<img src="figures/global_demographics/diagnosis_prevalence.png" style="width:auto; height:250px;">
+<img src="figures/global_demographics/diagnosis_prevalence.png" style="width:600px; height:auto;">
 
 **Citation:**
 Wagner, P., Strodthoff, N., Bousseljot, R., Samek, W., & Schaeffter, T. (2022). PTB-XL, a large publicly available electrocardiography dataset (version 1.0.3). *PhysioNet*. https://doi.org/10.13026/kfzx-aw45
@@ -137,7 +137,7 @@ All ECG signals undergo a two-step preprocessing pipeline:
 
 2. Per-record z-score normalization across all leads jointly — preserves the clinically meaningful amplitude difference between limb leads (std ≈ 0.13–0.16 mV) and precordial leads (std ≈ 0.22–0.33 mV).
 
-<img src="figures/preprocess_examples.png"  style="width:auto; height:250px;">
+<img src="figures/preprocess_examples.png" style="width:1000px; height:auto;">
 
 ### Exploratory Data Analysis 
 #### Data Quality Check
@@ -206,7 +206,7 @@ ResNet1D — a 1D convolutional residual network adapted from He et al. (2015) f
 - **Output:** 5 raw logits — sigmoid applied at inference for multi-label probabilities
 - **Parameters:** ~8,000,000
 
-<img src="figures/model_architecture.jpg" style="width:auto; height:250px;">
+<img src="figures/model_architecture.jpg" style="width:600px; height:auto;">
 
 ### Training
 
@@ -249,16 +249,16 @@ Macro-AUC on held-out test set with 95% bootstrap confidence interval (1000 resa
 
 DeLong test (Sun & Xu, 2014) comparing ResNet1D against each baseline at macro and per-class level.
 
-<img src="figures/figure1_model_comparison.png" style="width:auto; height:250px;">
-<img src="figures/figure2_per_class_auc.png" style="width:auto; height:250px;">
-<img src="figures/figure3_roc_curves.png" style="width:auto; height:250px;">
+<img src="figures/figure1_model_comparison.png" style="width:600px; height:auto;">
+<img src="figures/figure2_per_class_auc.png" style="width:600px; height:auto;">
+<img src="figures/figure3_roc_curves.png" style="width:1000px; height:auto;">
 
 ### Subgroup analyses
 
 Performance stratified by sex, age group (<40, 40–60, 60–80, >80), and signal quality (clean vs artifact-flagged). Each subgroup reported with macro-AUC and 95% bootstrap CI.
 
 #### ResNet 1D Model Subgroup Analysis
-<img src="figures/figure6_subgroup.png" style="width:auto; height:250px;">
+<img src="figures/figure6_subgroup.png" style="width:800px; height:auto;">
 
 ---
 
