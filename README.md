@@ -206,7 +206,7 @@ ResNet1D — a 1D convolutional residual network adapted from He et al. (2015) f
 - **Output:** 5 raw logits — sigmoid applied at inference for multi-label probabilities
 - **Parameters:** ~8,000,000
 
-![model_architecture]()
+<img src="figures/model_architecture.jpg" style="width:auto; height:250px;">
 
 ### Training
 
