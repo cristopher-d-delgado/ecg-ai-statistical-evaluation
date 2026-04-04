@@ -63,14 +63,6 @@ Place the downloaded data at `data/`.
 
 ---
 
-## Project Structure
-
-```
-
-```
-
----
-
 ## Installation
 
 **1. Clone the repository**
@@ -112,7 +104,7 @@ Trains logistic regression, random forest, and ResNet1D. Runs full statistical e
 ```bash
 jupyter notebook notebooks/validation.ipynb
 ```
-Loads saved artifacts and generates the complete statistical validation report with all publication-ready figures.
+Loads saved artifacts and generates the complete statistical validation report with all figures.
 
 ---
 
