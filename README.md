@@ -24,7 +24,7 @@ The project trains a 1D ResNet on 12-lead ECG signals, compares it against logis
 
 ## Results Summary
 
-| Model | Test Macro-AUC | 95% CI |
+| Model | Test Macro-AUC | Bootstrap 95% CI |
 |---|---|---|
 | Logistic Regression | 0.8528 | 0.8433–0.8632 |
 | Random Forest | 0.8628 | 0.8535–0.8726 |
@@ -35,6 +35,7 @@ ResNet1D significantly outperforms both baselines (DeLong test, p < 0.01). The l
 
 ### Model AUC Comparisons
 <img src="figures/figure1_model_comparison.png" style="width:auto; height:250px;">
+<img src="figures/figure2_per_class_auc.png" style="width:auto; height:250px;">
 
 ---
 
@@ -78,18 +79,13 @@ git clone https://github.com/cristopher-d-delgado/ecg-ai-statistical-evaluation.
 cd ecg-ai-statistical-evaluation
 ```
 
-**2. Create and activate environment**
+**2. Create, install and activate environment**
 ```bash
-conda create -n ptbxl_ai python=3.10
+conda create -f environment.yaml 
 conda activate ptbxl_ai
 ```
 
-**3. Install dependencies**
-```bash
-pip install -r requirements.txt
-```
-
-**4. Download PTB-XL dataset**
+**3. Download PTB-XL dataset**
 ```bash
 aws s3 sync --no-sign-request s3://physionet-open/ptb-xl/1.0.3/data
 ```
@@ -131,8 +127,6 @@ df['split'] = 'train'
 df.loc[df['strat_fold'] == 9,  'split'] = 'val'
 df.loc[df['strat_fold'] == 10, 'split'] = 'test'
 
-# Patient-level leakage check
-assert len(set(train_patient_ids) & set(test_patient_ids)) == 0
 ```
 
 ### Preprocessing
@@ -140,15 +134,16 @@ assert len(set(train_patient_ids) & set(test_patient_ids)) == 0
 All ECG signals undergo a two-step preprocessing pipeline:
 
 1. Zero-phase Butterworth bandpass filter (0.5–40 Hz, order 4) — removes baseline wander and high-frequency noise while preserving all clinically meaningful ECG components. Confirmed by PSD analysis across all 12 leads.
-<img src="figures/">
 
 2. Per-record z-score normalization across all leads jointly — preserves the clinically meaningful amplitude difference between limb leads (std ≈ 0.13–0.16 mV) and precordial leads (std ≈ 0.22–0.33 mV).
+
+<img src="figures/preprocess_examples.png"  style="width:auto; height:250px;">
 
 ### Exploratory Data Analysis 
 #### Data Quality Check
 The source of this data is from a reputable source however we need to verify the ECG signals are as expected. It is never incorrect to verify data quality. 
 
-##### Signal Quality 
+#### Signal Quality 
 
 **Spectral decay:** All 12 leads exhibit a consistent pattern of decreasing power with 
 increasing frequency, confirming that diagnostic ECG information is concentrated in the 
@@ -172,6 +167,8 @@ and is preserved by the chosen per-record z-score normalization strategy.
 **Cross-lead consistency:** All 12 leads exhibited highly similar spectral shapes, 
 confirming no lead is behaving anomalously and that the data loaded correctly across 
 all channels.
+
+<img src="figures/psd_eda.png" style="width:auto; height:250px;">
 
 #### Demographics 
 ##### Global
@@ -304,6 +301,7 @@ Performance stratified by sex, age group (<40, 40–60, 60–80, >80), and signa
 **Calibration**
 
 ResNet1D macro ECE = 0.101, substantially higher than logistic regression (0.024) and random forest (0.037). Both global and per-class temperature scaling produced negligible improvement, suggesting miscalibration is driven by class imbalance rather than uniform overconfidence. Calibration is identified as a limitation requiring future work.
+
 
 ---
 
