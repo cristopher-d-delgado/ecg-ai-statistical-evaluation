@@ -196,7 +196,7 @@ ResNet1D — a 1D convolutional residual network adapted from He et al. (2015) f
 - **Output:** Global average pooling → Dropout(0.2) → Linear(256→5)
 - **Parameters:** ~1,893,893
 
-<img src="figures/model_architecture.jpg" style="width:600px; height:auto;">
+<img src="figures/model_architecture.jpg" style="width:1000px; height:auto;">
 
 ### Training
 
